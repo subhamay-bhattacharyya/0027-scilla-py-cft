@@ -1,0 +1,562 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+   CFN Template to launch one custom VPC, two public and two private subnets with 
+   one internet gateway with VPC route. 
+
+Metadata:
+  TemplateName: vpc-stack.yaml
+  TemplateType: VPC / Private and Private Subnets / Route tables / Internet Gateway / VPC Route.
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Nested Stack Standardization
+  Last Modified: September 25, 2022
+  Resources: 
+    - One Custom VPC.
+    - Two Public and two Private Subnets.
+    - One Private and one Public Route Table.
+    - One Internet Gateway with VPC Route.
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label:
+        default: "Project Name And Environment:"
+      Parameters:
+      - ProjectName
+      - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+      - StackName
+    #################################### VPC and Subnet ############################################
+    - Label:
+        default: "VPC Cidr Block"
+      Parameters:
+      - VpcCidrBlock
+    - Label:
+        default: "Subnet Cidr Block"
+      Parameters:
+      - PublicSubnet1ACidrBlock
+      - PublicSubnet1BCidrBlock
+      - PrivateSubnet1ACidrBlock
+      - PrivateSubnet1BCidrBlock
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      StackName:
+        default: "Stack Name."
+      ################################## VPC and Subnet ############################################
+      VpcCidrBlock:
+        default: "VPC Cidr Block"
+      PublicSubnet1ACidrBlock:
+        default: "Public Subnet 1A Cidr Block"
+      PublicSubnet1BCidrBlock: 
+        default: "Public Subnet 1B Cidr Block"
+      PrivateSubnet1ACidrBlock:
+        default: "Private Subnet 1A Cidr Block"
+      PrivateSubnet1BCidrBlock:
+        default: "Private Subnet 1B Cidr Block"
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: scilla
+    Description: "The Project Name for which the custom resource will be used."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+ ###################################### KMS Key ###################################################
+  KmsMasterKeyId:
+    Default: "arn:aws:kms:us-east-1:237376087602:key/f7eb118d-f1d2-4d70-a046-dfada470840e"
+    Description: "The KMS Key Id Used For Encryption."
+    Type: String
+    MinLength: 75
+    MaxLength: 75
+    AllowedPattern: "[a-z:/0-9-]*"
+    ConstraintDescription: "The length of the KMS Key Id should be 36 and must be lowercase alphabets, numbers and dash."
+  ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 001-tarius
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String
+  StackName:
+    Default: ""
+    Description: "The name of the stack which created the resource"
+    Type: String  
+  ###################################### Code Repository S3 Bucket #################################
+  CodeRepositoryS3Bucket:
+    Default: subhamay-projects-repository-us-east-1
+    Description: "S3 Bucket Storing The Lambda Code."
+    Type: String
+    MinLength: 10
+    MaxLength: 63
+    AllowedPattern: "[a-z][a-z0-9-.]*"
+    ConstraintDescription: "The length should be between 3 and 63, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  VpcCidrBlock:
+    Type: String
+    Description: VPC CIDR Range
+    Default: 172.16.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PublicSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1A within the VPC.
+    Default: 172.16.0.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PublicSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1B within the VPC.
+    Default: 172.16.1.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PrivateSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 172.16.2.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PrivateSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 172.16.3.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ProjectName}-VPC'
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  CustomResourceLambdaIAMRole:
+    Type: AWS::IAM::Role
+    DependsOn: VPC
+    Properties:
+      RoleName: !Sub '${ProjectName}-cust-res-role-${Environment}-${AWS::Region}${CiBuild}'
+      Description: !Sub '${ProjectName} Custom Resource Lambda Execution Role'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-cust-res-role-${Environment}-${AWS::Region}${CiBuild}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:Describe*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-CustomResourceLambdaFunction-${Environment}-${AWS::Region}${CiBuild}*'
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName                
+  CustomResourceLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      FunctionName: !Sub '${ProjectName}-get-main-rt-id-${Environment}-${AWS::Region}${CiBuild}'
+      Description: !Sub '${ProjectName} Custom Resource Lambda Function to get the VPC main route table id'
+      Role: !GetAtt CustomResourceLambdaIAMRole.Arn
+      Runtime: python3.9
+      Timeout: 50
+      Code:
+        ZipFile: |
+            from __future__ import print_function
+            import json
+            import boto3
+            import urllib3
+            import cfnresponse
+
+            SUCCESS = "SUCCESS"
+            FAILED = "FAILED"
+
+            http = urllib3.PoolManager()
+
+            print('Loading function')
+            ec2 = boto3.client('ec2')
+
+            def lambda_handler(event, context):
+                print("Received event: " + json.dumps(event, indent=2))
+                responseData={}
+                try:
+                    if event['RequestType'] == 'Delete':
+                        print("Request Type:",event['RequestType'])
+                        print("Delete Request - No Physical resources to delete")
+                    elif event['RequestType'] == 'Create':
+                        print("Request Type:",event['RequestType'])
+                        VPCID=event['ResourceProperties']['VPCID']
+                        RouteTableID=get_vpc(VPCID)
+                        responseData={'RouteTableID':RouteTableID}
+                        print("Sending response to custom resource")
+                    elif event['RequestType'] == 'Update':
+                        print("Request Type:",event['RequestType'])
+                        VPCID=event['ResourceProperties']['VPCID']
+                        RouteTableID=get_vpc(VPCID)
+                        responseData={'RouteTableID':RouteTableID}
+                        print("Sending response to custom resource")
+                    responseStatus = 'SUCCESS'
+                    print("responseStatus: " + responseStatus)
+                    cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+                except Exception as e:
+                    print('Failed to process:', e)
+                    responseStatus = 'FAILURE'
+                    responseData = {'Failure': 'Something bad happened.'}
+                    cfnresponse.send(event, context, cfnresponse.FAILURE, responseData, "CustomResourcePhysicalID")
+
+            def get_vpc(VPCID):
+                response = ec2.describe_route_tables (
+                  Filters=[
+                    {
+                      'Name': 'association.main',
+                      'Values': [ 'true' ]
+                    },
+                    {
+                      'Name': 'vpc-id',
+                      'Values': [ VPCID ]
+                    }
+                  ]
+                )
+                print("Printing the VPC Route Table ID ....")
+                RouteTableID=response['RouteTables'][0]['RouteTableId']
+                print(RouteTableID)
+                return RouteTableID
+
+            def send(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                responseUrl = event['ResponseURL']
+                print(responseUrl)
+                responseBody = {'Status': responseStatus,
+                                'Reason': 'See the details in CloudWatch Log Stream: ' + context.log_stream_name,
+                                'PhysicalResourceId': physicalResourceId or context.log_stream_name,
+                                'StackId': event['StackId'],
+                                'RequestId': event['RequestId'],
+                                'LogicalResourceId': event['LogicalResourceId'],
+                                'Data': responseData}
+                json_responseBody = json.dumps(responseBody)
+                print("Response body:\n" + json_responseBody)
+                headers = {
+                    'content-type' : '',
+                    'content-length' : str(len(json_responseBody))
+                }
+                try:
+                    response = http.request('PUT', responseUrl, headers=headers, body=json_responseBody)
+                    print("Status code: " + response.reason)
+                except Exception as e:
+                    print("send(..) failed executing requests.put(..): " + str(e))
+  CustomResourceLambdaTrigger:
+    Type: Custom::RouteTableLambda
+    Properties:
+      ServiceToken: !GetAtt CustomResourceLambdaFunction.Arn
+      VPCID: !Ref VPC
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1ACidrBlock 
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:
+        Fn::Select: 
+          - '0'
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-Public-Subnet-1A${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1BCidrBlock 
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:
+        Fn::Select: 
+          - '1'
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-Public-Subnet-1B${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  PrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1ACidrBlock
+      AvailabilityZone:
+        Fn::Select: 
+          - '0'
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-Private-Subnet-1A${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  PrivateSubnet1B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1BCidrBlock 
+      AvailabilityZone:
+        Fn::Select: 
+          - '1'
+          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-Private-Subnet-1B${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ProjectName}-Private-RT${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  PrivateSubnet1ARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1A
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnet1BRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1B
+      RouteTableId: !Ref PrivateRouteTable
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: !Sub '${ProjectName}-IGW${CiBuild}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  VPCRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt CustomResourceLambdaTrigger.RouteTableID
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+Outputs:
+  PublicSubnet1AId:
+    Description: Public Subnet-1A Id
+    Value: !Ref PublicSubnet1A
+  PublicSubnet1BId:
+    Description: Public Subnet-1B Id
+    Value: !Ref PublicSubnet1B
+  PrivateSubnet1AId:
+    Description: Public Subnet-1A Id
+    Value: !Ref PrivateSubnet1A
+  PrivateSubnet1BId:
+    Description: Public Subnet-1B Id
+    Value: !Ref PrivateSubnet1B
+  VpcId:
+    Description: Vpc Id
+    Value: !Ref VPC
+  CustomResourceLambdaIAMRoleArn:
+    Description:  Custom Resource Lambda IAM Role Arn
+    Value: !GetAtt CustomResourceLambdaIAMRole.Arn
+  CustomResourceLambdaFunctionArn:
+    Description: Custom Resource Lambda Arn
+    Value: !GetAtt CustomResourceLambdaFunction.Arn
+  VPCMainRouteTableId:
+    Description: Custom VPC Main Route Table Id
+    Value: !GetAtt CustomResourceLambdaTrigger.RouteTableID
