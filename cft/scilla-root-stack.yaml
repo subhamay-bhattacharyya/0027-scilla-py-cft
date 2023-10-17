@@ -1,0 +1,326 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+   Project Scilla - Root Stack Template to create VPC, Subnets, Security Group and EC2 instancs.
+
+Metadata:
+  TemplateName: scilla-root-stack.yaml
+  TemplateType: Root Stack
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Scilla
+  Modification History:
+    - 1.0.0  - Sep 27, 2023   -- Initial Version
+  Resources: 
+    - Resources
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label:
+        default: "Project Name And Environment:"
+      Parameters:
+      - ProjectName
+      - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+      - StackName
+    #################################### Code Repository Bucket ####################################
+    - Label:
+        default: "Code Repository S3 Bucket:"
+      Parameters:
+      - CodeRepositoryS3Bucket
+    #################################### KMS Key ###################################################
+    - Label: 
+        default: "KMS Configuration:"
+      Parameters: 
+        - KmsMasterKeyId
+    #################################### VPC Cidr Block ############################################
+    - Label:
+        default: "VPC Cidr Block"
+      Parameters:
+      - ScillaVpcCidrBlock
+    #################################### Subnet Cidr Block #########################################
+    - Label:
+        default: "Subnet Cidr Block"
+      Parameters:
+      - ScillaPublicSubnet1ACidrBlock
+      - ScillaPublicSubnet1BCidrBlock
+      - ScillaPrivateSubnet1ACidrBlock
+      - ScillaPrivateSubnet1BCidrBlock
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      StackName:
+        default: "Stack Name."
+      ################################## Code Repository Bucket ####################################
+      CodeRepositoryS3Bucket:
+        default: "Code Repository S3 Bucket."
+      ################################## KMS Key ###################################################
+      KmsMasterKeyId:
+        default: "KMS Key Id."
+      ################################## VPC Cidr Block ############################################
+      ScillaVpcCidrBlock:
+        default: "VPC Cidr Block"
+      #################################### Subnet Cidr Block #######################################
+      ScillaPublicSubnet1ACidrBlock:
+        default: "Public Subnet 1A Cidr Block"
+      ScillaPublicSubnet1BCidrBlock: 
+        default: "Public Subnet 1B Cidr Block"
+      ScillaPrivateSubnet1ACidrBlock:
+        default: "Private Subnet 1A Cidr Block"
+      ScillaPrivateSubnet1BCidrBlock:
+        default: "Private Subnet 1B Cidr Block"
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: sedum
+    Description: "The Project Name for which the custom resource will be used."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  ###################################### Code Repository S3 Bucket #################################
+  CodeRepositoryS3Bucket:
+    Default: subhamay-projects-repository-us-east-1
+    Description: "S3 Bucket Storing The Lambda Code."
+    Type: String
+    MinLength: 10
+    MaxLength: 63
+    AllowedPattern: "[a-z][a-z0-9-.]*"
+    ConstraintDescription: "The length should be between 3 and 63, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  ###################################### KMS Key ###################################################
+  KmsMasterKeyId:
+    Default: "arn:aws:kms:us-east-1:237376087602:key/f7eb118d-f1d2-4d70-a046-dfada470840e"
+    Description: "The KMS Key Id Used For Encryption."
+    Type: String
+    MinLength: 75
+    MaxLength: 75
+    AllowedPattern: "[a-z:/0-9-]*"
+    ConstraintDescription: "The length of the KMS Key Id should be 36 and must be lowercase alphabets, numbers and dash."
+  ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 001-tarius
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String
+  StackName:
+    Default: ""
+    Description: "The name of the stack which created the resource"
+    Type: String  
+  ################################## VPC Cidr Block ################################################
+  ScillaVpcCidrBlock:
+    Type: String
+    Description: VPC CIDR Range
+    Default: 10.0.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  ################################## Subnet Cidr Block #############################################
+  ScillaPublicSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1A within the VPC.
+    Default: 10.0.1.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  ScillaPublicSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1B within the VPC.
+    Default: 10.0.2.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  ScillaPrivateSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 10.0.3.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  ScillaPrivateSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 10.0.4.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  ###################################### EC2 #######################################################
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+Resources:
+  ###################################### VPC #######################################################
+  ScillaVPCStack:
+    Type: AWS::CloudFormation::Stack
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/vpc-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+        StackName: !Ref StackName
+        VpcCidrBlock: !Ref ScillaVpcCidrBlock
+        PublicSubnet1ACidrBlock: !Ref ScillaPublicSubnet1ACidrBlock 
+        PublicSubnet1BCidrBlock: !Ref ScillaPublicSubnet1BCidrBlock
+        PrivateSubnet1ACidrBlock: !Ref ScillaPrivateSubnet1ACidrBlock
+        PrivateSubnet1BCidrBlock: !Ref ScillaPrivateSubnet1BCidrBlock
+      TimeoutInMinutes: 5
+  ###################################### Security Group ################################################################
+  ScillaSecurityGroupStack:
+    Type: AWS::CloudFormation::Stack
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/security-group-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+        StackName: !Ref StackName
+        VPCId: !GetAtt ScillaVPCStack.Outputs.VpcId
+        SecurityGroupName: 'scill-sg'
+        SecurityGroupDescription: "SSH Security Group."
+      TimeoutInMinutes: 5
+  ###################################### EC2 Webserver #############################################
+  ScillaEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t2.micro
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: "0"
+          SubnetId: !GetAtt ScillaVPCStack.Outputs.PublicSubnet1AId
+          GroupSet:
+            - !GetAtt ScillaSecurityGroupStack.Outputs.SecurityGroupId
+      UserData: 
+        Fn::Base64: |
+          #!/bin/bash
+          # Use this for your user data (script from top to bottom)
+          # install httpd (Linux 2 version)
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Hello World from $(hostname -f) </h1>" > /var/www/html/index.html
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName} WebServer'
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+        - Key: StackName
+          Value: !Ref StackName
+  ###################################### Route53 A Record ##########################################
+  ScillaRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: subhamay.link.
+      Name: !Sub '${Environment}${CiBuild}.subhamay.link.'
+      Type: A
+      TTL: '900'
+      ResourceRecords:
+        - !GetAtt ScillaEC2Instance.PublicIp
+Outputs:
+  VpcId: 
+    Description: VPC Id
+    Value: !GetAtt ScillaVPCStack.Outputs.VpcId
+  PublicSubnet1AId: 
+    Description: PublicSubnet1AId Id
+    Value: !GetAtt ScillaVPCStack.Outputs.PublicSubnet1AId
+  PublicSubnet1BId: 
+    Description: PublicSubnet1BId Id
+    Value: !GetAtt ScillaVPCStack.Outputs.PublicSubnet1BId
+  PrivateSubnet1AId: 
+    Description: PrivateSubnet1AId Id
+    Value: ScillaVPCStack.Outputs.PrivateSubnet1AId
+  PrivateSubnet1BId: 
+    Description: PrivateSubnet1BId Id
+    Value: !GetAtt ScillaVPCStack.Outputs.PrivateSubnet1BId
+  VPCMainRouteTableId: 
+    Description: VPCMainRouteTableId Id
+    Value: !GetAtt ScillaVPCStack.Outputs.VPCMainRouteTableId
+  SecurityGroupId:
+    Description: Security Group Id
+    Value: !GetAtt ScillaSecurityGroupStack.Outputs.SecurityGroupId
+  WebsiteURL:
+    Description: Website URL
+    Value: !Sub 'http://${ScillaRoute53Record}' 
